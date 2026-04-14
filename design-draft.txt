@@ -1,0 +1,747 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  ShieldCheck, Zap, Settings, FileSearch, Wrench, CheckSquare, Factory,
+  ChevronRight, Target, Activity, Award, Microscope, AlertTriangle, 
+  HelpCircle, ArrowRight, CheckCircle2, TrendingUp, Cpu, Clock, 
+  ThumbsUp, ChevronDown, MoveRight, Layers, Edit3, ImagePlus, Save, Plus, Trash2, Camera
+} from 'lucide-react';
+
+// --- 自定义动画 Hook 与 组件 ---
+const FadeInSection = ({ children, delay = 0, direction = 'up' }) => {
+  const [isVisible, setVisible] = useState(false);
+  const domRef = useRef();
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            setVisible(true);
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+    if (domRef.current) observer.observe(domRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const getTransform = () => {
+    if (isVisible) return 'translate-y-0 translate-x-0 scale-100';
+    switch (direction) {
+      case 'up': return 'translate-y-12 opacity-0';
+      case 'left': return '-translate-x-12 opacity-0';
+      case 'right': return 'translate-x-12 opacity-0';
+      case 'zoom': return 'scale-95 opacity-0';
+      default: return 'translate-y-12 opacity-0';
+    }
+  };
+
+  return (
+    <div
+      ref={domRef}
+      className={`transition-all duration-1000 ease-out ${isVisible ? 'opacity-100' : 'opacity-0'} ${getTransform()}`}
+      style={{ transitionDelay: `${delay}ms` }}
+    >
+      {children}
+    </div>
+  );
+};
+
+const AnimatedCounter = ({ end, suffix = "", duration = 2000 }) => {
+  const [count, setCount] = useState(0);
+  const [isVisible, setVisible] = useState(false);
+  const domRef = useRef();
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      }
+    );
+    if (domRef.current) observer.observe(domRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (isVisible) {
+      let startTimestamp = null;
+      const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 4);
+        setCount(Math.floor(ease * end));
+        if (progress < 1) {
+          window.requestAnimationFrame(step);
+        }
+      };
+      window.requestAnimationFrame(step);
+    }
+  }, [isVisible, end, duration]);
+
+  return <span ref={domRef}>{count}{suffix}</span>;
+};
+
+// --- 主应用组件 ---
+const App = () => {
+  const [activeTab, setActiveTab] = useState(1);
+  const [activeFaq, setActiveFaq] = useState(null);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  // --- 动态案例状态管理 ---
+  const [isEditingCase, setIsEditingCase] = useState(false);
+  const [caseStudy, setCaseStudy] = useState({
+    title: "某头部工业储能高压动力线束NPI全流程落地案",
+    client: "行业Top 3储能设备制造商",
+    background: "设备长期处于复杂工况，承受低频震荡与高压大电流，对线束的机械强度与电气绝缘性要求极度苛刻。",
+    painPoints: [
+      "线缆绝缘层厚且韧，传统剥线极易刮伤内芯细铜丝，导致高压测试产生电晕隐患。",
+      "原图纸常规压接在震动后，拉拔力急剧衰减，接触阻抗超标发热。"
+    ],
+    solutions: [
+      "抛弃常规参数，定制剥线机刀片行程与角度，数百次测试锁定'零伤铜丝'临界点。",
+      "前置DFM优化：微调压模具C/H高度释放应力，并首创特制双壁热缩管二次密封防松脱工艺。",
+      "引入定制工装与100%高压绝缘全检机制入SOP。"
+    ],
+    results: [
+      "破坏性拉拔力指标反超国标 35%。",
+      "48小时极速出具极限验证样品。",
+      "爬坡量产后实现 0 批次退回，0 安全客诉。"
+    ],
+    image: null // 存储本地上传的图片URL
+  });
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const imageUrl = URL.createObjectURL(file);
+      setCaseStudy({ ...caseStudy, image: imageUrl });
+    }
+  };
+
+  const handleArrayChange = (field, index, value) => {
+    const newArray = [...caseStudy[field]];
+    newArray[index] = value;
+    setCaseStudy({ ...caseStudy, [field]: newArray });
+  };
+
+  const addArrayItem = (field) => {
+    setCaseStudy({ ...caseStudy, [field]: [...caseStudy[field], ""] });
+  };
+
+  const removeArrayItem = (field, index) => {
+    const newArray = caseStudy[field].filter((_, i) => i !== index);
+    setCaseStudy({ ...caseStudy, [field]: newArray });
+  };
+
+  // 监听导航栏滚动效果
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 50);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const processSteps = [
+    {
+      id: 1, title: "需求导入与技术初审", subtitle: "打破信息差，精准锁定核心诉求",
+      icon: <FileSearch className="w-7 h-7" />,
+      description: "不盲目接单，第一时间消化您的原始图纸与电气规格书，精准识别高压、大电流环境下的特殊应用边界。",
+      points: ["消化原始图纸与电气规格书", "识别高压、大电流特殊应用场景要求", "输出初步的技术可行性评估意见"],
+      deliverable: "《项目需求意向书》",
+      colorFrom: "from-blue-600", colorTo: "to-cyan-500", shadow: "shadow-blue-500/30"
+    },
+    {
+      id: 2, title: "DFM分析与方案优化", subtitle: "把隐患消灭在图纸阶段",
+      icon: <Target className="w-7 h-7" />,
+      description: "基于多年复杂线束实战经验，我们专注高压线束的特殊受力与绝缘环境，为您深度排查并修复潜在的工艺风险。",
+      points: ["全面审查绝缘距离、弯折半径与受力点", "基于大线经验评估端子选型与模具匹配度", "提供成本优化与拉力提升的微调建议"],
+      deliverable: "《DFM工程分析报告》",
+      colorFrom: "from-indigo-500", colorTo: "to-blue-500", shadow: "shadow-indigo-500/30"
+    },
+    {
+      id: 3, title: "核心物料甄选与验证", subtitle: "从源头卡死高压安全底线",
+      icon: <Layers className="w-7 h-7" />,
+      description: "高压无小事，材料是第一道防线。联合头部供应商，锁定最契合电气特性的车规级/工控级高压线材与插件。",
+      points: ["筛选验证车规级/工控级特种高压线缆", "严格验证端子镀层厚度与抗氧化/接触阻抗性能", "执行绝缘材料耐温等级与阻燃(V0级)前置测试"],
+      deliverable: "《核心物料BOM表》 & 材质检测证明",
+      colorFrom: "from-violet-500", colorTo: "to-purple-500", shadow: "shadow-violet-500/30"
+    },
+    {
+      id: 4, title: "极速打样与工装定制", subtitle: "不靠运气，靠参数的极限摸索",
+      icon: <Wrench className="w-7 h-7" />,
+      description: "高压线打样最怕“大力出奇迹”。遇到绝缘皮厚、易伤铜丝等痛点，我们在极短时间内通过设备调试找到最佳物理解法。",
+      points: ["抛弃大厂冗长流程，技术骨干当晚驻线试错", "定制剥线刀片行程，实现厚绝缘“零伤细铜丝”", "自主研发匹配的压接模具与测试工装定位板"],
+      deliverable: "实物高精度初版样品 & 工装清单",
+      colorFrom: "from-orange-500", colorTo: "to-amber-400", shadow: "shadow-orange-500/30"
+    },
+    {
+      id: 5, title: "全维测试与极限验证", subtitle: "超标准内测，挑战物理极限",
+      icon: <Microscope className="w-7 h-7" />,
+      description: "自我刁难是安全的保证。打样后立刻投入极其严苛的物理与电性能内测，不拿客户的产品当试验品。",
+      points: ["执行高压/绝缘/导通三合一电性能综合测试", "破坏性拉拔力极限摸底与端子截面(孔隙率)金相分析", "模拟真实工况的震荡与高低温循环老化测试"],
+      deliverable: "《FA首件检验报告》 & 截面显微图",
+      colorFrom: "from-red-500", colorTo: "to-rose-400", shadow: "shadow-red-500/30"
+    },
+    {
+      id: 6, title: "客户验厂与样品签核", subtitle: "透明化展示，建立绝对信任",
+      icon: <CheckSquare className="w-7 h-7" />,
+      description: "打开大门做线束，邀请客户深入我们的核心制程，从参数确认到设备点检，所见即所得。",
+      points: ["邀请客户现场观摩核心压接与高压测试工序", "全透明开放生产制程记录与品质溯源体系", "多方技术会审，确认各项临界安全指标并签字封样"],
+      deliverable: "《客户签样单》 & 验厂确认书",
+      colorFrom: "from-teal-500", colorTo: "to-emerald-400", shadow: "shadow-teal-500/30"
+    },
+    {
+      id: 7, title: "SOP编制与产线防呆", subtitle: "将“经验”写成不可违背的“铁律”",
+      icon: <Settings className="w-7 h-7" />,
+      description: "防范人为失误是量产的关键。我们将试产中摸索出的最佳工艺参数，100%固化为产线上的防呆指导书。",
+      points: ["量化压接高度(C/H)、压接宽度(C/W)及微米级公差", "输出图文并茂的标准作业指导书，彻底消除装配歧义", "产线引入物理治具防呆或导通检测防呆，防止错漏穿"],
+      deliverable: "《量产SOP/SIP文件》 & 专属防呆治具",
+      colorFrom: "from-emerald-500", colorTo: "to-green-400", shadow: "shadow-emerald-500/30"
+    },
+    {
+      id: 8, title: "小批量试产 (NPI)", subtitle: "真实量产环境下的压力测试",
+      icon: <Activity className="w-7 h-7" />,
+      description: "不打无准备之仗。在全面量产前，通过小批量跑线验证人员熟练度、设备稳定性与物料齐套率。",
+      points: ["按量产标准投入试产批次进行全流程工序跑线", "测算并验证实际工时瓶颈(CT)、排位及流线顺畅度", "严密收集试产直通率(FPY)数据，微调闭环工艺参数"],
+      deliverable: "《试产总结报告》 & 产能爬坡计划",
+      colorFrom: "from-cyan-500", colorTo: "to-sky-400", shadow: "shadow-cyan-500/30"
+    },
+    {
+      id: 9, title: "全检量产与追溯赋码", subtitle: "死磕安全红线，制程不玩花架子",
+      icon: <Factory className="w-7 h-7" />,
+      description: "针对高压线“零容错”的特性，采用最务实、最严苛的物理制程管控，每一根线都是安全承载者。",
+      points: ["每日首件必检(FAI)与核心工序IPQC高频强制抽检", "每一根成品线出厂前必过高压、绝缘、导通三大红线测试", "激光镭雕或特种贴标生成唯一追溯码，实现批次闭环追踪"],
+      deliverable: "《批次出货检验报告(OQC)》 & 唯一追溯码",
+      colorFrom: "from-fuchsia-500", colorTo: "to-pink-500", shadow: "shadow-fuchsia-500/30"
+    },
+    {
+      id: 10, title: "售后响应与持续迭代", subtitle: "交付不是终点，服务全天候在线",
+      icon: <ThumbsUp className="w-7 h-7" />,
+      description: "做大客户的长效伙伴。极速响应您的工程变更与售后需求，不断推动产品的价值重塑与降本增效。",
+      points: ["24小时售后极速响应矩阵，紧急技术问题绝不过夜", "ECN(工程变更)极速对接，48小时内提供新验证样品", "定期回顾制程与质量数据，主动提供VAVE工程降本方案"],
+      deliverable: "《8D问题解决报告》 & VAVE改良建议",
+      colorFrom: "from-amber-600", colorTo: "to-orange-500", shadow: "shadow-amber-500/30"
+    }
+  ];
+
+  const faqs = [
+    {
+      id: 1, question: "贵司规模不大，如何保证大批量高压线束的稳定交期？",
+      answer: "“船小好调头”正是我们的优势。我们没有大厂繁琐的排产审批，大客户项目我们实行“专线专人”负责制。一旦参数固化，我们将投入专用的全自动/半自动设备锁定产能。同时，我们在核心物料端有常备安全库存，确保突发增量也能在承诺周期内交付。"
+    },
+    {
+      id: 2, question: "高压线对安全性要求极高，如果出现质量异常你们怎么追溯？",
+      answer: "我们实行严格的批次管理。每一批出货的产品，其对应的生产日期、使用的端子/线材批次、当天的首件检验报告（截面分析/拉力测试数据）以及全检记录都会归档保存。一旦出现反馈，我们能在2小时内调出当批次的所有制程数据，精准定位问题节点。"
+    },
+    {
+      id: 3, question: "如果我们在中途提出图纸变更（ECN），你们的响应速度如何？",
+      answer: "极其迅速。工程主管直接对接您的技术团队，无中间传达损耗。收到变更图纸后，我们通常在4小时内完成工程评估，24-48小时内提供变更后的验证样品。这是传统大型代工厂难以企及的敏捷度。"
+    }
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-950 font-sans text-slate-200 scroll-smooth selection:bg-orange-500 selection:text-white">
+      
+      {/* 动态导航条 */}
+      <nav className={`fixed w-full z-50 transition-all duration-300 ${isScrolled ? 'bg-slate-950/80 backdrop-blur-lg border-b border-white/10 py-3' : 'bg-transparent py-5'} px-6 md:px-12 flex justify-between items-center`}>
+        <div className="flex items-center gap-3 cursor-pointer">
+          <div className="relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-orange-600 to-amber-400 rounded-lg blur opacity-40 group-hover:opacity-100 transition duration-500"></div>
+            <div className="relative bg-slate-900 p-1.5 rounded-lg border border-white/10">
+              <Zap className="text-orange-500 w-6 h-6" />
+            </div>
+          </div>
+          <span className="font-bold text-xl tracking-wider text-white">智造专家</span>
+        </div>
+        <div className="hidden lg:flex gap-8 text-sm font-bold text-slate-400 tracking-wide">
+          {['核心实力', '管控流程', '完整实战案例', '严苛品控', '常见问答'].map((item, idx) => (
+            <a key={idx} href={`#${['stats', 'process', 'full-case-study', 'quality', 'faq'][idx]}`} className="hover:text-white hover:scale-105 transition-all">
+              {item}
+            </a>
+          ))}
+        </div>
+      </nav>
+
+      {/* 赛博朋克风 Hero Section */}
+      <header className="relative pt-32 pb-40 px-6 md:px-12 overflow-hidden flex items-center justify-center min-h-[90vh]">
+        <div className="absolute inset-0 z-0">
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff0a_1px,transparent_1px),linear-gradient(to_bottom,#ffffff0a_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
+          <div className="absolute top-[10%] left-[10%] w-[500px] h-[500px] rounded-full bg-blue-600/20 blur-[120px] mix-blend-screen animate-pulse" style={{animationDuration: '8s'}}></div>
+          <div className="absolute bottom-[10%] right-[10%] w-[600px] h-[600px] rounded-full bg-orange-600/10 blur-[150px] mix-blend-screen animate-pulse" style={{animationDuration: '10s'}}></div>
+        </div>
+
+        <div className="max-w-6xl mx-auto relative z-10 text-center">
+          <FadeInSection direction="up">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md text-orange-400 text-sm font-bold tracking-widest mb-8 uppercase cursor-default shadow-[0_0_15px_rgba(249,115,22,0.2)]">
+              <Activity className="w-4 h-4 animate-pulse"/> 专注于极高要求的线束智造
+            </div>
+          </FadeInSection>
+          
+          <FadeInSection direction="up" delay={200}>
+            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black leading-tight mb-8 tracking-tighter text-white">
+              从工艺图纸到批量交付<br/>
+              <span className="relative inline-block mt-4">
+                <span className="absolute -inset-1 bg-gradient-to-r from-blue-500 via-orange-400 to-amber-500 blur-2xl opacity-30"></span>
+                <span className="relative text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-orange-300 to-orange-500">
+                  重塑高压线束的安全基因
+                </span>
+              </span>
+            </h1>
+          </FadeInSection>
+
+          <FadeInSection direction="up" delay={400}>
+            <p className="text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto leading-relaxed mb-12 font-medium">
+              抛弃刻板代工。我们以 <strong className="text-white">极速响应、深度DFM优化</strong> 及 <strong className="text-white">100%电性能全检</strong>，为您解决储能、工控领域的高难度制程瓶颈。
+            </p>
+          </FadeInSection>
+
+          <FadeInSection direction="up" delay={600}>
+            <div className="flex flex-wrap justify-center gap-6">
+              <a href="#process" className="group relative px-8 py-4 bg-orange-500 text-white font-bold text-lg rounded-xl overflow-hidden shadow-[0_0_40px_rgba(249,115,22,0.4)] hover:shadow-[0_0_60px_rgba(249,115,22,0.6)] transition-all">
+                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+                <span className="relative flex items-center gap-2">探索工艺管控方案 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform"/></span>
+              </a>
+              <a href="#full-case-study" className="px-8 py-4 bg-slate-800 text-white font-bold text-lg rounded-xl border border-white/10 hover:bg-slate-700 hover:border-white/30 transition-all backdrop-blur-sm flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-blue-400"/> 查看完整实战项目案例
+              </a>
+            </div>
+          </FadeInSection>
+        </div>
+      </header>
+
+      {/* 动态数字展板 */}
+      <section id="stats" className="relative z-20 -mt-24 px-6 md:px-12">
+        <div className="max-w-6xl mx-auto bg-slate-900/60 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/10 p-8 md:p-12 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 divide-x divide-white/10">
+            {[
+              { end: 100, suffix: '%', label: '出厂电性能全检拦截', color: 'text-emerald-400' },
+              { end: 24, suffix: 'h', label: '极速问题响应与打样', color: 'text-orange-400' },
+              { end: 0, suffix: '', label: '量产批次重大事故率', color: 'text-blue-400' },
+              { end: 500, suffix: '+', label: '复杂工艺攻克经验', color: 'text-purple-400' }
+            ].map((stat, idx) => (
+              <div key={idx} className="text-center px-4 group">
+                <div className={`text-4xl md:text-6xl font-black mb-3 ${stat.color} tracking-tighter drop-shadow-[0_0_15px_currentColor]`}>
+                  <AnimatedCounter end={stat.end} suffix={stat.suffix} />
+                </div>
+                <p className="text-slate-400 font-bold text-sm tracking-widest uppercase">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 交互式 SOP 流程区 */}
+      <section id="process" className="py-32 px-6 md:px-12 relative">
+        <div className="max-w-6xl mx-auto">
+          <FadeInSection direction="up">
+            <div className="text-center mb-16">
+              <span className="inline-block py-1 px-3 rounded-full bg-blue-500/10 text-blue-400 font-bold tracking-widest text-xs uppercase mb-4 border border-blue-500/20">Standard Operating Procedure</span>
+              <h2 className="text-4xl md:text-5xl font-black mb-6 text-white tracking-tight">十大管控阶段，铸就零容错体系</h2>
+              <div className="w-24 h-1.5 bg-gradient-to-r from-blue-500 to-orange-500 mx-auto rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+            </div>
+          </FadeInSection>
+
+          <div className="flex flex-col lg:flex-row gap-8">
+            <div className="lg:w-1/3 relative">
+              <div className="absolute left-[23px] top-6 bottom-6 w-0.5 bg-slate-800"></div>
+              <div className="flex flex-col gap-3 relative z-10">
+                {processSteps.map((step) => (
+                  <button
+                    key={step.id}
+                    onClick={() => setActiveTab(step.id)}
+                    className={`text-left p-3.5 rounded-2xl transition-all duration-300 flex items-center gap-4 group relative ${
+                      activeTab === step.id ? `bg-slate-800 border border-white/5 shadow-xl scale-[1.02]` : `hover:bg-slate-800/40`
+                    }`}
+                  >
+                    <div className={`relative flex-shrink-0 w-[46px] h-[46px] rounded-full flex items-center justify-center transition-all duration-300 ${
+                      activeTab === step.id ? `bg-gradient-to-br ${step.colorFrom} ${step.colorTo} shadow-lg ${step.shadow}` : `bg-slate-900 border border-slate-700 text-slate-500 group-hover:text-slate-300`
+                    }`}>
+                      {activeTab === step.id && (
+                         <div className="absolute inset-0 rounded-full bg-white animate-ping opacity-20 duration-1000"></div>
+                      )}
+                      <span className={`font-black text-lg ${activeTab === step.id ? 'text-white' : ''}`}>{step.id}</span>
+                    </div>
+                    <div>
+                      <span className={`font-bold text-[15px] block transition-colors duration-300 ${activeTab === step.id ? 'text-white' : 'text-slate-400'}`}>
+                        {step.title}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="lg:w-2/3 relative flex items-center min-h-[500px]">
+              {processSteps.map((step) => (
+                <div 
+                  key={step.id}
+                  className={`transition-all duration-500 w-full ${activeTab === step.id ? 'relative opacity-100 translate-y-0 z-10 pointer-events-auto' : 'absolute top-0 left-0 opacity-0 translate-y-8 z-0 pointer-events-none'}`}
+                >
+                  <div className="p-8 md:p-10 rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl relative overflow-hidden group w-full">
+                    <div className={`absolute -right-32 -top-32 w-96 h-96 rounded-full bg-gradient-to-br ${step.colorFrom} ${step.colorTo} opacity-10 blur-3xl group-hover:opacity-20 transition-opacity duration-700`}></div>
+
+                    <div className="flex items-center gap-6 mb-8 relative z-10">
+                      <div className={`p-5 rounded-2xl shadow-xl text-white bg-gradient-to-br ${step.colorFrom} ${step.colorTo} transform -rotate-6 group-hover:rotate-0 transition-transform duration-500`}>
+                        {step.icon}
+                      </div>
+                      <div>
+                        <h3 className="text-3xl font-black text-white mb-2 tracking-tight">{step.title}</h3>
+                        <p className={`font-bold text-transparent bg-clip-text bg-gradient-to-r ${step.colorFrom} ${step.colorTo} text-lg`}>
+                          {step.subtitle}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <p className="text-lg leading-relaxed mb-10 text-slate-300 relative z-10 font-medium">
+                      {step.description}
+                    </p>
+
+                    <div className="space-y-6 relative z-10 bg-slate-950/50 p-8 rounded-2xl border border-white/5 backdrop-blur-sm">
+                      <h4 className="font-bold flex items-center gap-3 text-white text-lg">
+                        <Target className="w-5 h-5 text-orange-500" /> 核心管控动作
+                      </h4>
+                      <ul className="space-y-4">
+                        {step.points.map((point, index) => (
+                          <li key={index} className="flex items-start gap-4">
+                            <span className={`flex-shrink-0 mt-1`}>
+                              <CheckCircle2 className={`w-5 h-5 text-transparent bg-clip-text bg-gradient-to-br ${step.colorFrom} ${step.colorTo}`} stroke="currentColor" />
+                            </span>
+                            <span className="font-semibold text-slate-300 leading-relaxed text-md">{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="mt-8 relative z-10 flex items-center gap-4 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                      <div className="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                        <Layers className="w-4 h-4"/> 交付标准物
+                      </div>
+                      <div className="font-bold text-white text-md">
+                        {step.deliverable}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ====== 动态全景项目案例引擎 (Dynamic Case Study) ====== */}
+      <section id="full-case-study" className="py-32 px-6 md:px-12 bg-slate-950 relative overflow-hidden border-y border-white/5">
+        <div className="absolute top-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50"></div>
+        <div className="max-w-7xl mx-auto relative z-10">
+          
+          <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-12">
+            <div>
+              <span className="text-blue-500 font-black tracking-widest uppercase text-sm mb-3 block flex items-center gap-2">
+                <Target className="w-4 h-4"/> Complete Project Case Study
+              </span>
+              <h2 className="text-4xl md:text-5xl font-black text-white">从痛点到闭环：<span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">完整落地案例实录</span></h2>
+            </div>
+            
+            {/* 模式切换按钮 */}
+            <button 
+              onClick={() => setIsEditingCase(!isEditingCase)}
+              className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all ${isEditingCase ? 'bg-orange-500 text-white shadow-[0_0_20px_rgba(249,115,22,0.4)]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'}`}
+            >
+              {isEditingCase ? <><Save className="w-5 h-5"/> 保存并演示</> : <><Edit3 className="w-5 h-5"/> 开启实时编辑模式</>}
+            </button>
+          </div>
+
+          {/* ----- 编辑模式 UI ----- */}
+          {isEditingCase ? (
+            <div className="bg-slate-900 border border-slate-700 rounded-3xl p-8 md:p-12 shadow-2xl animate-in fade-in zoom-in duration-300">
+              <div className="grid lg:grid-cols-2 gap-12">
+                {/* 左侧表单 */}
+                <div className="space-y-8">
+                  <div>
+                    <label className="block text-slate-400 text-sm font-bold uppercase tracking-widest mb-2">项目主标题</label>
+                    <input type="text" value={caseStudy.title} onChange={(e) => setCaseStudy({...caseStudy, title: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all font-bold text-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 text-sm font-bold uppercase tracking-widest mb-2">客户背景 / 标签</label>
+                    <input type="text" value={caseStudy.client} onChange={(e) => setCaseStudy({...caseStudy, client: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 text-sm font-bold uppercase tracking-widest mb-2">项目难点 / 背景概述</label>
+                    <textarea rows="3" value={caseStudy.background} onChange={(e) => setCaseStudy({...caseStudy, background: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"></textarea>
+                  </div>
+
+                  {/* 痛点动态列表 */}
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="text-red-400 text-sm font-bold uppercase tracking-widest">核心技术痛点 (可增删)</label>
+                      <button onClick={() => addArrayItem('painPoints')} className="text-slate-400 hover:text-white flex items-center gap-1 text-sm"><Plus className="w-4 h-4"/> 添加</button>
+                    </div>
+                    <div className="space-y-3">
+                      {caseStudy.painPoints.map((item, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <input type="text" value={item} onChange={(e) => handleArrayChange('painPoints', idx, e.target.value)} className="flex-1 bg-red-950/20 border border-red-900/50 rounded-lg px-4 py-2 text-slate-200 focus:border-red-500 focus:outline-none" />
+                          <button onClick={() => removeArrayItem('painPoints', idx)} className="p-2 text-slate-500 hover:text-red-500 bg-slate-950 rounded-lg"><Trash2 className="w-5 h-5"/></button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 右侧表单 */}
+                <div className="space-y-8">
+                  {/* 图片上传器 */}
+                  <div>
+                    <label className="block text-slate-400 text-sm font-bold uppercase tracking-widest mb-2">项目实拍图片上传</label>
+                    <div className="relative group rounded-2xl overflow-hidden border-2 border-dashed border-slate-700 hover:border-blue-500 bg-slate-950 transition-colors h-48 flex flex-col items-center justify-center cursor-pointer">
+                      <input type="file" accept="image/*" onChange={handleImageUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                      {caseStudy.image ? (
+                        <img src={caseStudy.image} alt="上传预览" className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-30 transition-opacity" />
+                      ) : null}
+                      <Camera className="w-10 h-10 text-slate-500 mb-2 group-hover:text-blue-500 transition-colors relative z-0" />
+                      <span className="text-slate-400 font-medium relative z-0 group-hover:text-blue-400">点击或拖拽上传产品/截面图</span>
+                    </div>
+                  </div>
+
+                  {/* 解决方案动态列表 */}
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="text-blue-400 text-sm font-bold uppercase tracking-widest">我们的破局方案 (可增删)</label>
+                      <button onClick={() => addArrayItem('solutions')} className="text-slate-400 hover:text-white flex items-center gap-1 text-sm"><Plus className="w-4 h-4"/> 添加</button>
+                    </div>
+                    <div className="space-y-3">
+                      {caseStudy.solutions.map((item, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <input type="text" value={item} onChange={(e) => handleArrayChange('solutions', idx, e.target.value)} className="flex-1 bg-blue-950/20 border border-blue-900/50 rounded-lg px-4 py-2 text-slate-200 focus:border-blue-500 focus:outline-none" />
+                          <button onClick={() => removeArrayItem('solutions', idx)} className="p-2 text-slate-500 hover:text-red-500 bg-slate-950 rounded-lg"><Trash2 className="w-5 h-5"/></button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 最终成果动态列表 */}
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="text-emerald-400 text-sm font-bold uppercase tracking-widest">最终量产战果 (可增删)</label>
+                      <button onClick={() => addArrayItem('results')} className="text-slate-400 hover:text-white flex items-center gap-1 text-sm"><Plus className="w-4 h-4"/> 添加</button>
+                    </div>
+                    <div className="space-y-3">
+                      {caseStudy.results.map((item, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <input type="text" value={item} onChange={(e) => handleArrayChange('results', idx, e.target.value)} className="flex-1 bg-emerald-950/20 border border-emerald-900/50 rounded-lg px-4 py-2 text-slate-200 focus:border-emerald-500 focus:outline-none" />
+                          <button onClick={() => removeArrayItem('results', idx)} className="p-2 text-slate-500 hover:text-red-500 bg-slate-950 rounded-lg"><Trash2 className="w-5 h-5"/></button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* ----- 演示模式 UI (高级看板) ----- */
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-500">
+              
+              {/* 看板头部 */}
+              <div className="p-8 md:p-12 border-b border-slate-800 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="inline-block px-4 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-black tracking-widest uppercase mb-4">
+                  CLIENT: {caseStudy.client}
+                </div>
+                <h3 className="text-3xl md:text-5xl font-black text-white leading-tight mb-4">{caseStudy.title}</h3>
+                <p className="text-lg text-slate-400 max-w-4xl font-medium leading-relaxed">{caseStudy.background}</p>
+              </div>
+
+              <div className="grid lg:grid-cols-[1.5fr_1fr] divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
+                
+                {/* 详情区：痛点与方案 */}
+                <div className="p-8 md:p-12 bg-slate-900/50">
+                  {/* 痛点 */}
+                  <div className="mb-12">
+                    <h4 className="flex items-center gap-3 text-xl font-black text-white mb-6">
+                      <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center border border-red-500/20"><AlertTriangle className="w-5 h-5 text-red-500"/></div>
+                      原发技术痛点
+                    </h4>
+                    <ul className="space-y-4">
+                      {caseStudy.painPoints.map((pt, i) => (
+                        <li key={i} className="flex gap-4 p-4 rounded-2xl bg-red-950/10 border border-red-900/30">
+                          <span className="w-6 h-6 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center font-bold text-xs flex-shrink-0 mt-0.5">{i+1}</span>
+                          <span className="text-slate-300 font-medium leading-relaxed">{pt}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* 方案 */}
+                  <div>
+                    <h4 className="flex items-center gap-3 text-xl font-black text-white mb-6">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20"><Wrench className="w-5 h-5 text-blue-500"/></div>
+                      极客破局方案
+                    </h4>
+                    <ul className="space-y-4">
+                      {caseStudy.solutions.map((sol, i) => (
+                        <li key={i} className="flex gap-4 p-4 rounded-2xl bg-blue-950/10 border border-blue-900/30">
+                          <CheckCircle2 className="w-6 h-6 text-blue-500 flex-shrink-0 mt-0.5"/>
+                          <span className="text-slate-300 font-medium leading-relaxed">{sol}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* 视觉与成果区 */}
+                <div className="flex flex-col bg-slate-950">
+                  {/* 上传图片展示区 */}
+                  <div className="h-64 relative bg-slate-900 overflow-hidden border-b border-slate-800">
+                    {caseStudy.image ? (
+                      <img src={caseStudy.image} alt="项目实景" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center opacity-30">
+                        <ImagePlus className="w-16 h-16 text-slate-500 mb-4" />
+                        <span className="text-slate-500 font-bold uppercase tracking-widest text-sm">Product Visualization Area</span>
+                        <span className="text-slate-600 text-xs mt-2">点击右上方 [编辑模式] 导入实拍图</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 to-transparent"></div>
+                  </div>
+
+                  {/* 战果区 */}
+                  <div className="p-8 md:p-12 flex-1">
+                    <h4 className="flex items-center gap-3 text-xl font-black text-white mb-6">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20"><Award className="w-5 h-5 text-emerald-500"/></div>
+                      量产交付战果
+                    </h4>
+                    <div className="space-y-4">
+                      {caseStudy.results.map((res, i) => (
+                        <div key={i} className="bg-emerald-950/20 border border-emerald-900/40 p-5 rounded-2xl flex items-center gap-4 group hover:bg-emerald-900/20 transition-colors">
+                          <TrendingUp className="w-6 h-6 text-emerald-500 opacity-70 group-hover:opacity-100" />
+                          <span className="text-emerald-50 font-bold">{res}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 悬浮发光 QC 矩阵 */}
+      <section id="quality" className="py-32 px-6 md:px-12 bg-slate-900">
+        <div className="max-w-6xl mx-auto">
+          <FadeInSection>
+            <div className="text-center mb-20">
+              <h2 className="text-4xl md:text-5xl font-black mb-6 text-white">拒绝空谈，用物理测试捍卫安全</h2>
+              <p className="text-slate-400 text-lg max-w-2xl mx-auto font-medium">高压线束的“零容错”不仅靠经验，更靠硬核的设备检测。我们的四大核心指标直接对标国际工程标准。</p>
+            </div>
+          </FadeInSection>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: Zap, title: "耐高压冲击 (Hipot)", desc: "超高电压电弧、电晕、击穿拦截测试。", tag: "100% 全检拦截", color: "blue" },
+              { icon: ShieldCheck, title: "绝缘阻抗测试", desc: "高精度直流电压检测极细微绝缘损伤。", tag: "100% 全检拦截", color: "emerald" },
+              { icon: Activity, title: "破坏性拉拔力", desc: "高精度拉力机模拟极端拉扯机械极限。", tag: "首件必检 / 高频巡检", color: "red" },
+              { icon: Microscope, title: "显微截面分析", desc: "切开压接部位，分子级验证内部孔隙率。", tag: "首件定标标准", color: "purple" }
+            ].map((item, idx) => (
+              <FadeInSection key={idx} delay={idx * 150} direction="up">
+                <div className="bg-slate-950 border border-slate-800 p-8 rounded-3xl group hover:-translate-y-3 transition-all duration-300 relative overflow-hidden h-full flex flex-col justify-between">
+                  <div className={`absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-0 group-hover:animate-[shimmer_1.5s_infinite] opacity-5`}></div>
+                  <div className="relative z-10">
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-8 bg-${item.color}-500/10 text-${item.color}-500 border border-${item.color}-500/20 group-hover:scale-110 group-hover:bg-${item.color}-500 group-hover:text-white transition-all duration-500 shadow-[0_0_20px_rgba(0,0,0,0)] group-hover:shadow-[0_0_30px_currentColor]`}>
+                      <item.icon className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-bold mb-3 text-white">{item.title}</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed mb-6 font-medium">
+                      {item.desc}
+                    </p>
+                  </div>
+                  <div className="relative z-10">
+                    <span className={`inline-block px-3 py-1.5 rounded-lg text-xs font-black tracking-widest uppercase bg-slate-900 border border-slate-700 text-${item.color}-400 group-hover:border-${item.color}-500/50 transition-colors`}>
+                      {item.tag}
+                    </span>
+                  </div>
+                </div>
+              </FadeInSection>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 科技风 FAQ 交互区 */}
+      <section id="faq" className="py-32 px-6 md:px-12 bg-slate-950 relative">
+        <div className="max-w-4xl mx-auto">
+          <FadeInSection>
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center justify-center p-4 bg-slate-900 rounded-full mb-6 border border-white/5 shadow-lg">
+                <HelpCircle className="w-8 h-8 text-orange-500" />
+              </div>
+              <h2 className="text-3xl md:text-4xl font-black mb-4 text-white">打消您对“小厂”的所有疑虑</h2>
+            </div>
+          </FadeInSection>
+
+          <div className="space-y-4">
+            {faqs.map((faq, idx) => (
+              <FadeInSection key={faq.id} delay={idx * 100}>
+                <div className={`rounded-2xl transition-all duration-300 overflow-hidden border backdrop-blur-md ${activeFaq === faq.id ? 'border-orange-500/50 bg-orange-500/5 shadow-[0_0_30px_rgba(249,115,22,0.1)]' : 'border-white/10 bg-slate-900/50 hover:bg-slate-900'}`}>
+                  <button onClick={() => setActiveFaq(activeFaq === faq.id ? null : faq.id)} className="w-full px-8 py-6 text-left flex justify-between items-center focus:outline-none group">
+                    <span className={`font-bold text-lg ${activeFaq === faq.id ? 'text-orange-400' : 'text-slate-200 group-hover:text-white transition-colors'}`}>
+                      <span className="text-slate-600 mr-4 font-black">Q{faq.id}</span> {faq.question}
+                    </span>
+                    <div className={`p-2 rounded-full border transition-all duration-300 ${activeFaq === faq.id ? 'bg-orange-500 border-orange-500 text-slate-900 rotate-180' : 'border-white/10 text-slate-500 group-hover:border-slate-500 group-hover:text-white'}`}>
+                      <ChevronDown className="w-5 h-5" />
+                    </div>
+                  </button>
+                  <div className={`px-8 overflow-hidden transition-all duration-500 ease-in-out ${activeFaq === faq.id ? 'max-h-96 pb-8 opacity-100' : 'max-h-0 opacity-0'}`}>
+                    <p className="text-slate-400 text-lg leading-relaxed font-medium pt-4 border-t border-white/5">
+                      <span className="text-orange-500 font-black mr-3">A.</span>{faq.answer}
+                    </p>
+                  </div>
+                </div>
+              </FadeInSection>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 极简高级 Footer CTA */}
+      <footer className="bg-slate-950 py-32 px-6 text-center relative border-t border-white/10 overflow-hidden">
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-64 bg-orange-500/20 blur-[150px] pointer-events-none"></div>
+        <div className="max-w-4xl mx-auto relative z-10">
+          <FadeInSection>
+            <div className="mb-8 flex justify-center">
+              <div className="w-20 h-20 bg-slate-900 border border-white/10 rounded-3xl flex items-center justify-center shadow-2xl">
+                <ThumbsUp className="w-10 h-10 text-orange-500" />
+              </div>
+            </div>
+            <h2 className="text-4xl md:text-6xl font-black text-white mb-8 leading-tight tracking-tight">
+              带着图纸来，<br/>让<span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-500">实测数据</span>替我们说话。
+            </h2>
+            <p className="text-xl text-slate-400 mb-12 font-medium">
+              抛开繁文缛节，开启高效的工程技术对话。
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+              <button className="group relative w-full sm:w-auto bg-orange-500 text-white px-12 py-5 rounded-full font-black text-lg overflow-hidden shadow-[0_0_30px_rgba(249,115,22,0.3)] hover:shadow-[0_0_50px_rgba(249,115,22,0.6)] transition-all hover:-translate-y-1">
+                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+                <span className="relative flex items-center justify-center gap-3">
+                  预约实地考察与打样 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform"/>
+                </span>
+              </button>
+            </div>
+          </FadeInSection>
+        </div>
+      </footer>
+      
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes shimmer {
+          100% { transform: translateX(200%) skewX(-12deg); }
+        }
+      `}} />
+    </div>
+  );
+};
+
+export default App;
