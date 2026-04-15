@@ -153,8 +153,8 @@ export function DynamicExhibitionBar() {
                     />
                   )}
 
-                  {/* 上图下文：约 3/4 高度给完整展示图（contain），1/4 给文案 */}
-                  <div className="relative h-3/4 min-h-0 w-full shrink-0 border-b border-slate-200 dark:border-white/[0.06]">
+                  {/* 上图下文：约 3/5 高度给图，其余给标题 / 参数 / 工艺说明 */}
+                  <div className="relative h-[58%] min-h-0 w-full shrink-0 border-b border-slate-200 dark:border-white/[0.06]">
                     <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-t-3xl bg-slate-100 dark:bg-slate-950">
                       <SafeProductImage src={item.image} alt={item.name} />
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-200/90 via-transparent to-transparent dark:from-slate-950/80" />
@@ -165,7 +165,7 @@ export function DynamicExhibitionBar() {
                     </div>
                   </div>
 
-                  <div className="flex h-1/4 min-h-0 flex-col justify-center gap-1.5 px-5 py-4 md:px-6">
+                  <div className="flex min-h-0 flex-1 flex-col justify-center gap-1.5 px-5 py-3 md:px-6 md:py-4">
                     <h3 className="line-clamp-2 text-base font-bold leading-snug text-[#0f172a] dark:text-white md:text-lg">
                       {item.name}
                     </h3>
@@ -173,6 +173,9 @@ export function DynamicExhibitionBar() {
                       <Gauge className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-400" />
                       <span className="line-clamp-2">{item.spec}</span>
                     </div>
+                    <p className="line-clamp-2 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400 md:line-clamp-3 md:text-[11px]">
+                      {item.desc}
+                    </p>
                   </div>
                 </div>
               </motion.div>
