@@ -7,8 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: ui-sans-serif, system-ui, "PingFang SC", "HarmonyOS Sans",
+    "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Sarasa Mono SC", monospace;
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -126,5 +127,38 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(200%) skewX(-12deg);
+  }
+}
+
+@keyframes scan {
+  0%,
+  100% {
+    transform: translateY(-100%);
+  }
+  50% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes equip-scan {
+  0% {
+    transform: translateY(-120%);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.12;
+  }
+  85% {
+    opacity: 0.12;
+  }
+  100% {
+    transform: translateY(120%);
+    opacity: 0;
   }
 }
