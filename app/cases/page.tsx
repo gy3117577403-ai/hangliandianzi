@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ShieldAlert,
@@ -20,6 +20,14 @@ import {
   UploadCloud,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  caseImageKeyBlueprint,
+  caseImageKeyProblem,
+  caseImageKeySopNew,
+  caseImageKeySopOld,
+  loadCaseImages,
+  putCaseImage,
+} from "@/lib/cases-image-idb";
 
 // ================= 核心初始数据配置区 =================
 const INITIAL_DATA = {
@@ -105,6 +113,220 @@ const INITIAL_DATA = {
 
 type CaseData = typeof INITIAL_DATA;
 
+const CASES_STORAGE_KEY = "cases_data";
+
+function stripCaseImagesForLocalStorage(d: CaseData): CaseData {
+  return {
+    ...d,
+    blueprints: d.blueprints.map((b) => ({ ...b, imgSrc: null })),
+    problems: d.problems.map((p) => ({ ...p, imgSrc: null })),
+    sops: d.sops.map((s) => ({
+      ...s,
+      oldProcess: { ...s.oldProcess, imgSrc: null },
+      newSop: { ...s.newSop, imgSrc: null },
+    })),
+  };
+}
+
+function isValidCaseSnapshot(o: unknown): o is CaseData {
+  if (!o || typeof o !== "object") return false;
+  const d = o as Record<string, unknown>;
+
+  const header = d.header;
+  if (!header || typeof header !== "object") return false;
+  const h = header as Record<string, unknown>;
+  if (typeof h.client !== "string" || typeof h.title !== "string" || typeof h.subtitle !== "string") {
+    return false;
+  }
+  if (!Array.isArray(h.tags) || h.tags.length !== INITIAL_DATA.header.tags.length) return false;
+  if (!h.tags.every((t) => typeof t === "string")) return false;
+
+  if (!Array.isArray(d.blueprints) || d.blueprints.length !== INITIAL_DATA.blueprints.length) {
+    return false;
+  }
+  for (let i = 0; i < d.blueprints.length; i++) {
+    const b = d.blueprints[i];
+    if (!b || typeof b !== "object") return false;
+    const bp = b as Record<string, unknown>;
+    if (typeof bp.id !== "number" || typeof bp.title !== "string" || typeof bp.code !== "string") {
+      return false;
+    }
+  }
+
+  if (!Array.isArray(d.problems) || d.problems.length !== INITIAL_DATA.problems.length) return false;
+  for (let i = 0; i < d.problems.length; i++) {
+    const p = d.problems[i];
+    if (!p || typeof p !== "object") return false;
+    const pr = p as Record<string, unknown>;
+    if (
+      typeof pr.id !== "number" ||
+      typeof pr.title !== "string" ||
+      typeof pr.imgLabel !== "string" ||
+      typeof pr.anomaly !== "string" ||
+      typeof pr.solution !== "string"
+    ) {
+      return false;
+    }
+  }
+
+  if (!Array.isArray(d.sops) || d.sops.length !== INITIAL_DATA.sops.length) return false;
+  for (let i = 0; i < d.sops.length; i++) {
+    const s = d.sops[i];
+    if (!s || typeof s !== "object") return false;
+    const sop = s as Record<string, unknown>;
+    if (typeof sop.id !== "number" || typeof sop.processName !== "string") return false;
+    if (!sop.oldProcess || typeof sop.oldProcess !== "object") return false;
+    const old = sop.oldProcess as Record<string, unknown>;
+    if (typeof old.imgLabel !== "string" || typeof old.desc !== "string") return false;
+    if (!sop.newSop || typeof sop.newSop !== "object") return false;
+    const neu = sop.newSop as Record<string, unknown>;
+    if (typeof neu.imgLabel !== "string" || typeof neu.desc !== "string") return false;
+  }
+
+  if (!Array.isArray(d.metrics) || d.metrics.length !== INITIAL_DATA.metrics.length) return false;
+  for (const m of d.metrics) {
+    if (!m || typeof m !== "object") return false;
+    const me = m as Record<string, unknown>;
+    if (typeof me.label !== "string" || typeof me.value !== "string" || typeof me.desc !== "string") {
+      return false;
+    }
+  }
+
+  if (!Array.isArray(d.timeline) || d.timeline.length !== INITIAL_DATA.timeline.length) return false;
+  for (const t of d.timeline) {
+    if (!t || typeof t !== "object") return false;
+    const tl = t as Record<string, unknown>;
+    if (typeof tl.step !== "string" || typeof tl.title !== "string" || typeof tl.desc !== "string") {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function parseCasesTextSnapshot(raw: string | null): CaseData | null {
+  if (!raw) return null;
+  try {
+    const p = JSON.parse(raw) as unknown;
+    if (!isValidCaseSnapshot(p)) return null;
+    return stripCaseImagesForLocalStorage(p);
+  } catch {
+    return null;
+  }
+}
+
+function collectCaseImageKeys(base: CaseData): string[] {
+  const keys: string[] = [];
+  for (const b of base.blueprints) keys.push(caseImageKeyBlueprint(b.id));
+  for (const p of base.problems) keys.push(caseImageKeyProblem(p.id));
+  for (const s of base.sops) {
+    keys.push(caseImageKeySopOld(s.id), caseImageKeySopNew(s.id));
+  }
+  return keys;
+}
+
+function mergeCaseImagesFromMap(base: CaseData, map: Record<string, string>): CaseData {
+  return {
+    ...base,
+    blueprints: base.blueprints.map((b) => ({
+      ...b,
+      imgSrc: map[caseImageKeyBlueprint(b.id)] ?? null,
+    })),
+    problems: base.problems.map((p) => ({
+      ...p,
+      imgSrc: map[caseImageKeyProblem(p.id)] ?? null,
+    })),
+    sops: base.sops.map((s) => ({
+      ...s,
+      oldProcess: {
+        ...s.oldProcess,
+        imgSrc: map[caseImageKeySopOld(s.id)] ?? null,
+      },
+      newSop: {
+        ...s.newSop,
+        imgSrc: map[caseImageKeySopNew(s.id)] ?? null,
+      },
+    })),
+  };
+}
+
+/** 舊版將 Base64 存在 localStorage 時，遷移到 IndexedDB */
+async function migrateLegacyCaseImagesFromLocalStorageRaw(raw: string): Promise<void> {
+  let root: unknown;
+  try {
+    root = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  if (!root || typeof root !== "object") return;
+  const o = root as Record<string, unknown>;
+
+  const bps = o.blueprints;
+  if (Array.isArray(bps)) {
+    for (const row of bps) {
+      if (!row || typeof row !== "object") continue;
+      const r = row as Record<string, unknown>;
+      if (typeof r.id !== "number") continue;
+      const img = r.imgSrc;
+      if (typeof img === "string" && img.startsWith("data:")) {
+        try {
+          await putCaseImage(caseImageKeyBlueprint(r.id), img);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
+
+  const probs = o.problems;
+  if (Array.isArray(probs)) {
+    for (const row of probs) {
+      if (!row || typeof row !== "object") continue;
+      const r = row as Record<string, unknown>;
+      if (typeof r.id !== "number") continue;
+      const img = r.imgSrc;
+      if (typeof img === "string" && img.startsWith("data:")) {
+        try {
+          await putCaseImage(caseImageKeyProblem(r.id), img);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
+
+  const sops = o.sops;
+  if (Array.isArray(sops)) {
+    for (const row of sops) {
+      if (!row || typeof row !== "object") continue;
+      const r = row as Record<string, unknown>;
+      if (typeof r.id !== "number") continue;
+      const oldP = r.oldProcess;
+      if (oldP && typeof oldP === "object") {
+        const img = (oldP as Record<string, unknown>).imgSrc;
+        if (typeof img === "string" && img.startsWith("data:")) {
+          try {
+            await putCaseImage(caseImageKeySopOld(r.id), img);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      const newP = r.newSop;
+      if (newP && typeof newP === "object") {
+        const img = (newP as Record<string, unknown>).imgSrc;
+        if (typeof img === "string" && img.startsWith("data:")) {
+          try {
+            await putCaseImage(caseImageKeySopNew(r.id), img);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    }
+  }
+}
+
 // ================= 可编辑文本组件 =================
 const EditableText = ({
   value,
@@ -142,7 +364,7 @@ const EditableImage = ({
   src: string | null;
   label: string;
   color?: "cyan" | "rose" | "emerald";
-  onUpload: (url: string) => void;
+  onUpload: (url: string) => void | Promise<void>;
   className?: string;
 }) => {
   const borderColor =
@@ -174,6 +396,7 @@ const EditableImage = ({
       };
       reader.readAsDataURL(file);
     }
+    e.target.value = "";
   };
 
   return (
@@ -232,6 +455,49 @@ const EditableImage = ({
 // ================= 主页面组件 =================
 export default function CaseStudyPage() {
   const [data, setData] = useState<CaseData>(INITIAL_DATA);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let base: CaseData = INITIAL_DATA;
+      try {
+        const raw = localStorage.getItem(CASES_STORAGE_KEY);
+        if (raw) {
+          await migrateLegacyCaseImagesFromLocalStorageRaw(raw);
+          const snapshot = parseCasesTextSnapshot(raw);
+          if (snapshot) base = snapshot;
+        }
+      } catch {
+        /* 維持 INITIAL_DATA */
+      }
+
+      let merged = base;
+      try {
+        const map = await loadCaseImages(collectCaseImageKeys(base));
+        merged = mergeCaseImagesFromMap(base, map);
+      } catch {
+        /* IndexedDB 失敗：僅展示文字快照 */
+      }
+
+      if (!cancelled) {
+        setData(merged);
+        setHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(CASES_STORAGE_KEY, JSON.stringify(stripCaseImagesForLocalStorage(data)));
+    } catch {
+      /* quota / private mode */
+    }
+  }, [data, hydrated]);
 
   const updateData = (
     section: keyof CaseData,
@@ -352,9 +618,14 @@ export default function CaseStudyPage() {
                 <EditableImage
                   src={bp.imgSrc}
                   label={`点击导入图纸 0${bp.id}`}
-                  onUpload={(url) =>
-                    updateData("blueprints", index, "imgSrc", url)
-                  }
+                  onUpload={async (url) => {
+                    updateData("blueprints", index, "imgSrc", url);
+                    try {
+                      await putCaseImage(caseImageKeyBlueprint(bp.id), url);
+                    } catch {
+                      /* 本会话可见；IDB 失败时刷新可能丢图 */
+                    }
+                  }}
                   className="h-48 w-full rounded-sm sm:h-60"
                 />
                 <div className="mt-2 flex items-center justify-between border border-slate-800/50 bg-slate-950/80 p-5">
@@ -412,9 +683,14 @@ export default function CaseStudyPage() {
                     src={prob.imgSrc}
                     label={prob.imgLabel}
                     color="rose"
-                    onUpload={(url) =>
-                      updateData("problems", index, "imgSrc", url)
-                    }
+                    onUpload={async (url) => {
+                      updateData("problems", index, "imgSrc", url);
+                      try {
+                        await putCaseImage(caseImageKeyProblem(prob.id), url);
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
                     className="h-40 w-full rounded"
                   />
 
@@ -499,15 +775,14 @@ export default function CaseStudyPage() {
                       src={sop.oldProcess.imgSrc}
                       label={sop.oldProcess.imgLabel}
                       color="rose"
-                      onUpload={(url) =>
-                        updateData(
-                          "sops",
-                          index,
-                          "imgSrc",
-                          url,
-                          "oldProcess",
-                        )
-                      }
+                      onUpload={async (url) => {
+                        updateData("sops", index, "imgSrc", url, "oldProcess");
+                        try {
+                          await putCaseImage(caseImageKeySopOld(sop.id), url);
+                        } catch {
+                          /* ignore */
+                        }
+                      }}
                       className="mb-6 h-48 w-full rounded-md"
                     />
 
@@ -541,9 +816,14 @@ export default function CaseStudyPage() {
                       src={sop.newSop.imgSrc}
                       label={sop.newSop.imgLabel}
                       color="emerald"
-                      onUpload={(url) =>
-                        updateData("sops", index, "imgSrc", url, "newSop")
-                      }
+                      onUpload={async (url) => {
+                        updateData("sops", index, "imgSrc", url, "newSop");
+                        try {
+                          await putCaseImage(caseImageKeySopNew(sop.id), url);
+                        } catch {
+                          /* ignore */
+                        }
+                      }}
                       className="mb-6 h-48 w-full rounded-md"
                     />
 
