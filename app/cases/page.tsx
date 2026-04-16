@@ -29,9 +29,9 @@ const INITIAL_DATA = {
     tags: ["125A+ 大电流", "ISO 19642 规范", "零缺陷交付", "100% FA首件达标"],
   },
   blueprints: [
-    { id: 1, title: "整车高压线束拓扑图", code: "DWG-001A", imgSrc: null as string | null },
-    { id: 2, title: "大电流连接器选型剖面", code: "CON-125A-X", imgSrc: null as string | null },
-    { id: 3, title: "电缆截面与屏蔽层结构", code: "CBL-ISO-19642", imgSrc: null as string | null },
+    { id: 1, title: "高压线总览图", code: "DWG-001A", imgSrc: null as string | null },
+    { id: 2, title: "压接参数图确认", code: "CON-125A-X", imgSrc: null as string | null },
+    { id: 3, title: "辅料及规格确认", code: "CBL-ISO-19642", imgSrc: null as string | null },
   ],
   problems: [
     {
