@@ -19,6 +19,7 @@ import {
   Settings,
   UploadCloud,
 } from "lucide-react";
+import Link from "next/link";
 
 // ================= 核心初始数据配置区 =================
 const INITIAL_DATA = {
@@ -278,12 +279,12 @@ export default function CaseStudyPage() {
           <span className="hidden animate-pulse rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 font-mono text-xs text-emerald-400 sm:block">
             EDIT_MODE_ACTIVE // 点击文本或图片框修改内容
           </span>
-          <a
+          <Link
             href="/"
             className="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/50 px-4 py-2 text-sm font-medium text-slate-400 transition-colors hover:text-white"
           >
             <ChevronLeft className="h-4 w-4" /> 案例中心
-          </a>
+          </Link>
         </div>
       </nav>
 
