@@ -13,6 +13,7 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { loadEquipmentImages, putEquipmentImage } from "@/lib/equipment-image-idb";
 
 const INITIAL_DATA = {
   header: {
@@ -77,7 +78,8 @@ type EquipmentData = typeof INITIAL_DATA;
 
 const STORAGE_KEY = "equipment_data";
 
-function parseEquipmentData(raw: string | null): EquipmentData | null {
+/** 僅還原文字欄位；圖片一律走 IndexedDB，此處 imgSrc 固定為 null（並接受舊版 LS 內嵌 Base64 僅作遷移用） */
+function parseEquipmentTextSnapshot(raw: string | null): EquipmentData | null {
   if (!raw) return null;
   try {
     const p = JSON.parse(raw) as unknown;
@@ -97,6 +99,7 @@ function parseEquipmentData(raw: string | null): EquipmentData | null {
     if (!Array.isArray(equipments) || equipments.length !== INITIAL_DATA.equipments.length) {
       return null;
     }
+    const rows: EquipmentData["equipments"] = [];
     for (let i = 0; i < equipments.length; i++) {
       const row = equipments[i];
       if (!row || typeof row !== "object") return null;
@@ -104,13 +107,59 @@ function parseEquipmentData(raw: string | null): EquipmentData | null {
       if (typeof r.id !== "string" || typeof r.name !== "string" || typeof r.icon !== "string") {
         return null;
       }
-      if (r.imgSrc !== null && typeof r.imgSrc !== "string") return null;
       if (typeof r.specs !== "string" || typeof r.desc !== "string") return null;
+      rows.push({
+        id: r.id,
+        name: r.name,
+        icon: r.icon,
+        imgSrc: null,
+        specs: r.specs,
+        desc: r.desc,
+      });
     }
-    return p as EquipmentData;
+    return {
+      header: {
+        title: h.title,
+        subtitle: h.subtitle,
+        description: h.description,
+      },
+      equipments: rows,
+    };
   } catch {
     return null;
   }
+}
+
+/** 將舊版寫入 localStorage 的 Base64 圖遷移到 IndexedDB（最佳努力） */
+async function migrateLegacyImagesFromLocalStorageRaw(raw: string): Promise<void> {
+  let loose: unknown;
+  try {
+    loose = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  if (!loose || typeof loose !== "object") return;
+  const eq = (loose as { equipments?: unknown }).equipments;
+  if (!Array.isArray(eq)) return;
+  for (const row of eq) {
+    if (!row || typeof row !== "object") continue;
+    const r = row as { id?: unknown; imgSrc?: unknown };
+    if (typeof r.id !== "string") continue;
+    if (typeof r.imgSrc === "string" && r.imgSrc.startsWith("data:")) {
+      try {
+        await putEquipmentImage(r.id, r.imgSrc);
+      } catch {
+        /* 單張失敗不阻斷 */
+      }
+    }
+  }
+}
+
+function stripImagesForLocalStorage(data: EquipmentData): EquipmentData {
+  return {
+    ...data,
+    equipments: data.equipments.map((e) => ({ ...e, imgSrc: null })),
+  };
 }
 
 const EditableText = ({
@@ -144,7 +193,7 @@ const EditableImage = ({
 }: {
   src: string | null;
   label: string;
-  onUpload: (url: string) => void;
+  onUpload: (url: string) => void | Promise<void>;
   className?: string;
 }) => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -198,19 +247,50 @@ export default function EquipmentPage() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    try {
-      const stored = parseEquipmentData(localStorage.getItem(STORAGE_KEY));
-      if (stored) setData(stored);
-    } catch {
-      /* ignore */
-    }
-    setHydrated(true);
+    let cancelled = false;
+    (async () => {
+      let base: EquipmentData = INITIAL_DATA;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const snapshot = parseEquipmentTextSnapshot(raw);
+          if (snapshot) {
+            base = snapshot;
+            await migrateLegacyImagesFromLocalStorageRaw(raw);
+          }
+        }
+      } catch {
+        /* 維持 INITIAL_DATA */
+      }
+
+      let merged = base;
+      try {
+        const map = await loadEquipmentImages(base.equipments.map((e) => e.id));
+        merged = {
+          ...base,
+          equipments: base.equipments.map((eq) => ({
+            ...eq,
+            imgSrc: map[eq.id] ?? null,
+          })),
+        };
+      } catch {
+        /* IndexedDB 不可用或讀取失敗：僅展示文字快照（圖為空） */
+      }
+
+      if (!cancelled) {
+        setData(merged);
+        setHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stripImagesForLocalStorage(data)));
     } catch {
       /* quota / private mode */
     }
@@ -319,7 +399,14 @@ export default function EquipmentPage() {
               <EditableImage
                 src={eq.imgSrc}
                 label={`导入图片 // ${eq.id}`}
-                onUpload={(url) => updateEq(i, "imgSrc", url)}
+                onUpload={async (url) => {
+                  updateEq(i, "imgSrc", url);
+                  try {
+                    await putEquipmentImage(eq.id, url);
+                  } catch {
+                    /* 記憶體中仍顯示；IndexedDB 失敗時刷新可能丟圖 */
+                  }
+                }}
                 className="h-56 w-full"
               />
               <div className="p-6">
