@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Activity,
@@ -74,6 +74,44 @@ const INITIAL_DATA = {
 };
 
 type EquipmentData = typeof INITIAL_DATA;
+
+const STORAGE_KEY = "equipment_data";
+
+function parseEquipmentData(raw: string | null): EquipmentData | null {
+  if (!raw) return null;
+  try {
+    const p = JSON.parse(raw) as unknown;
+    if (!p || typeof p !== "object") return null;
+    const o = p as Record<string, unknown>;
+    const header = o.header;
+    if (!header || typeof header !== "object") return null;
+    const h = header as Record<string, unknown>;
+    if (
+      typeof h.title !== "string" ||
+      typeof h.subtitle !== "string" ||
+      typeof h.description !== "string"
+    ) {
+      return null;
+    }
+    const equipments = o.equipments;
+    if (!Array.isArray(equipments) || equipments.length !== INITIAL_DATA.equipments.length) {
+      return null;
+    }
+    for (let i = 0; i < equipments.length; i++) {
+      const row = equipments[i];
+      if (!row || typeof row !== "object") return null;
+      const r = row as Record<string, unknown>;
+      if (typeof r.id !== "string" || typeof r.name !== "string" || typeof r.icon !== "string") {
+        return null;
+      }
+      if (r.imgSrc !== null && typeof r.imgSrc !== "string") return null;
+      if (typeof r.specs !== "string" || typeof r.desc !== "string") return null;
+    }
+    return p as EquipmentData;
+  } catch {
+    return null;
+  }
+}
 
 const EditableText = ({
   value,
@@ -156,6 +194,27 @@ const EditableImage = ({
 
 export default function EquipmentPage() {
   const [data, setData] = useState<EquipmentData>(INITIAL_DATA);
+  /** 避免首屏尚未從 localStorage 還原前，就把 INITIAL_DATA 寫回覆蓋快取 */
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = parseEquipmentData(localStorage.getItem(STORAGE_KEY));
+      if (stored) setData(stored);
+    } catch {
+      /* ignore */
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch {
+      /* quota / private mode */
+    }
+  }, [data, hydrated]);
 
   const updateEq = (i: number, f: keyof EquipmentData["equipments"][number], v: string | null) => {
     setData((prev) => {
