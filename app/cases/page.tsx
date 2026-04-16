@@ -25,6 +25,7 @@ import {
   caseImageKeyProblem,
   caseImageKeySopNew,
   caseImageKeySopOld,
+  deleteCasesImageDb,
   loadCaseImages,
   putCaseImage,
 } from "@/lib/cases-image-idb";
@@ -535,6 +536,23 @@ export default function CaseStudyPage() {
     }));
   };
 
+  const handleResetCachedData = async () => {
+    if (
+      !window.confirm(
+        "确定清除本页本地缓存（含文字与图片）并重置为代码中的 INITIAL_DATA？",
+      )
+    ) {
+      return;
+    }
+    try {
+      localStorage.removeItem(CASES_STORAGE_KEY);
+      await deleteCasesImageDb();
+    } catch {
+      /* 仍刷新以尽量脱离脏状态 */
+    }
+    window.location.reload();
+  };
+
   return (
     <div className="min-h-screen overflow-hidden bg-[#020617] pb-32 font-sans text-slate-200 selection:bg-cyan-500/30">
       <nav className="sticky top-0 z-50 flex items-center justify-between border-b border-slate-800/80 bg-[#020617]/90 px-6 py-4 backdrop-blur-xl">
@@ -551,6 +569,13 @@ export default function CaseStudyPage() {
           >
             <ChevronLeft className="h-4 w-4" /> 案例中心
           </Link>
+          <button
+            type="button"
+            onClick={handleResetCachedData}
+            className="text-[10px] font-normal text-slate-600 underline decoration-slate-700 underline-offset-2 transition-colors hover:text-slate-400"
+          >
+            重置数据
+          </button>
         </div>
       </nav>
 

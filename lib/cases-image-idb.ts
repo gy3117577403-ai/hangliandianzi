@@ -2,9 +2,24 @@
  * 實戰案例頁上傳圖（Base64 data URL）專用 IndexedDB，避免 localStorage 配額不足導致整份案例資料無法寫入。
  */
 
-const DB_NAME = "hanglian-cases";
+export const CASES_IMAGE_DB_NAME = "hanglian-cases";
+const DB_NAME = CASES_IMAGE_DB_NAME;
 const DB_VERSION = 1;
 const STORE = "caseImages";
+
+/** 清除案例页全部本地图片缓存（调试用） */
+export function deleteCasesImageDb(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") {
+      resolve();
+      return;
+    }
+    const req = indexedDB.deleteDatabase(DB_NAME);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error ?? new Error("deleteDatabase failed"));
+    req.onblocked = () => resolve();
+  });
+}
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
